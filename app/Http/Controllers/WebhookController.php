@@ -83,10 +83,11 @@ class WebhookController extends Controller
         );
         // dd($lyrics);
         // Generate the song using Suno API
-        $songFile = $this->sunoService->generateSongDefault($lyrics);
-        dd($songFile);
+        $songFile = $this->sunoService->generateSongMureka($lyrics);
+        // dd($songFile);
         if (!empty($songFile['id'])) {
-            $songStatus = $this->sunoService->getSongStatus('66901046722561');
+            $songStatus = $this->sunoService->getSongStatus($songFile['id']);
+            
             dd($songStatus);
         } else {
             dd('Song generation failed or no ID returned.');

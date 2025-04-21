@@ -10,8 +10,8 @@ class SunoService
 {
 
     private string $apiKey = "op_m9fl8w67VPaTmELByjGZp34Vv52A3A4";
-    // private string $apiUrl = 'https://api.mureka.ai/v1/song';
-    private string $apiUrl = 'http://localhost:3000/api';
+    private string $apiUrl = 'https://api.mureka.ai/v1/song';
+    // private string $apiUrl = 'http://localhost:3000/api';
     public function __construct()
     {
         // $this->apiUrl = env('SUNO_API_URL');
@@ -30,7 +30,7 @@ class SunoService
         return $response->json();
     }
 
-    public function generateSong(string $lyrics): array
+    public function generateSongMureka(string $lyrics): array
     {
         try {
             $response = Http::withOptions([
@@ -87,16 +87,33 @@ class SunoService
     }
     public function getSongStatus(string $id): array
     {
+        $maxAttempts = 100; // Limit to avoid infinite loop
+        $delaySeconds = 1; // Wait time between attempts
+
         try {
-            $response = Http::withOptions([
-                'verify' => false, // Bypass SSL verification
-            ])->withHeaders([
-                'Authorization' => 'Bearer ' . $this->apiKey,
-            ])->get($this->apiUrl . '/query/' . $id);
+            for ($attempt = 1; $attempt <= $maxAttempts; $attempt++) {
+                $response = Http::withOptions([
+                    'verify' => false,
+                ])->withHeaders([
+                    'Authorization' => 'Bearer ' . $this->apiKey,
+                ])->get($this->apiUrl . '/query/' . $id);
 
-            $response->throw();
+                $response->throw();
 
-            return $response->json();
+                $data = $response->json();
+
+                if (isset($data['status']) && $data['status'] === 'succeeded') {
+                    return $data;
+                }
+
+                // Optional: log the polling status
+                // Log::info("Polling Mureka (Attempt: {$attempt}) - Status: {$data['status'] ?? 'unknown'}");
+
+                sleep($delaySeconds); // Wait before the next attempt
+            }
+
+            Log::warning("Mureka polling exceeded {$maxAttempts} attempts for task ID: {$id}");
+            return ['error' => 'Polling timed out. Song not ready yet.'];
         } catch (\Illuminate\Http\Client\RequestException $e) {
             Log::error('Mureka API Query Error', [
                 'message' => $e->getMessage(),
@@ -108,5 +125,23 @@ class SunoService
             Log::error('Unexpected Error in getSongStatus: ' . $e->getMessage());
             return [];
         }
+    }
+
+
+    public function extractMp3Url(array $response): ?string
+    {
+        if (isset($response['choices']) && is_array($response['choices'])) {
+            foreach ($response['choices'] as $choice) {
+                if (isset($choice['url']) && filter_var($choice['url'], FILTER_VALIDATE_URL)) {
+                    return $choice['url']; // Return the first valid MP3 URL
+                }
+            }
+        }
+
+        Log::warning('No valid MP3 URL found in Mureka response', [
+            'response' => $response,
+        ]);
+
+        return null;
     }
 }
