@@ -4,6 +4,8 @@ namespace App\Http\Controllers;
 
 use App\Models\Order;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Log;
+use App\Services\GoogleDriveService;
 
 class OrderController extends Controller
 {
@@ -20,8 +22,47 @@ class OrderController extends Controller
 
     public function store(Request $request)
     {
-        $order = Order::create(['order_data' => json_decode($request->input('order_data'), true)]);
-        return redirect()->route('orders.index');
+        try {
+            $request->validate([
+                'customer_name' => 'required|string|max:255',
+                'customer_email' => 'required|email|max:255',
+                'customer_phone' => 'required|string|max:20',
+                'group_size' => 'required|integer|min:1',
+                'order_total' => 'required|numeric|min:0',
+                'audio_file' => 'required|url',
+                'convert_to_video' => 'boolean'
+            ]);
+
+            Log::info('Order request data:', $request->all());
+
+            // Upload to Google Drive
+            $driveService = new GoogleDriveService();
+            $driveUrl = $driveService->upload($request->audio_file, $request->boolean('convert_to_video'));
+
+            // Create order
+            $order = Order::create([
+                'customer_name' => $request->customer_name,
+                'customer_email' => $request->customer_email,
+                'customer_phone' => $request->customer_phone,
+                'group_size' => $request->group_size,
+                'order_total' => $request->order_total,
+                'audio_file' => $driveUrl,
+                'status' => 'pending'
+            ]);
+
+            return response()->json([
+                'success' => true,
+                'message' => 'Order created successfully',
+                'data' => $order
+            ]);
+
+        } catch (\Exception $e) {
+            Log::error('Order creation failed: ' . $e->getMessage());
+            return response()->json([
+                'success' => false,
+                'message' => 'Failed to create order: ' . $e->getMessage()
+            ], 500);
+        }
     }
 
     public function showSong(Order $order)

@@ -8,17 +8,21 @@ use App\Services\SunoService;
 use App\Services\YouTubeService;
 use App\Services\GoogleDriveService;
 use App\Models\Order;
+use App\Services\VideoConversionService;
+use Illuminate\Support\Facades\Log;
 
 class WebhookController extends Controller
 {
 
     protected $chatGPTService;
     protected $sunoService;
+    protected $videoConverter;
 
     public function __construct(ChatGPTService $chatGPTService, SunoService $sunoService)
     {
         $this->chatGPTService = $chatGPTService;
         $this->sunoService = $sunoService;
+        $this->videoConverter = new VideoConversionService();
     }
     public function handleOrder(Request $request)
     {
@@ -81,28 +85,85 @@ class WebhookController extends Controller
             $orderDetails['items'], 
             $groupSize
         );
-        // dd($lyrics);
+
         // Generate the song using Suno API
         $songFile = $this->sunoService->generateSongMureka($lyrics);
-        // dd($songFile);
+
         if (!empty($songFile['id'])) {
             $songStatus = $this->sunoService->getSongStatus($songFile['id']);
             
-            dd($songStatus);
-        } else {
-            dd('Song generation failed or no ID returned.');
-        }
-        // Upload the song to Google Drive
-        // Store order and song details
-        Order::create([
-            'customer_name' => $orderDetails['customer'],
-            'city' => $orderDetails['city'],
-            'total' => $data['payment']['amount'],
-            'status' => 'processing',
-            'lyrics' => $lyrics,
-            'song_file' => $songFile,
-        ]);
+            // Get the first audio URL from the choices
+            $audioUrl = $songStatus['choices'][0]['url'];
+            
+            // Convert MP3 to MP4
+            $videoTitle = "AI Song for " . $orderDetails['customer'] . " from " . $orderDetails['city'];
+            $mp4Path = $this->videoConverter->convertToMp4($audioUrl, $videoTitle);
+            
+            // Upload to Google Drive
+            $driveLink = app(GoogleDriveService::class)->upload($mp4Path, true); // true for video
 
-        return response()->json(['message' => 'Song generated successfully', 'song_file' => $songFile]);
+            // Store order and song details
+            // $order = Order::create([
+            //     'customer_name' => $orderDetails['customer'],
+            //     'city' => $orderDetails['city'],
+            //     'order_total' => $orderDetails['total'],
+            //     'status' => 'completed',
+            //     'lyrics' => $lyrics,
+            //     'audio_file' => $audioUrl,
+            //     'drive_link' => $driveLink,
+            //     'group_size' => $groupSize
+            // ]);
+
+            return response()->json([
+                'message' => 'Song generated, converted to video, and uploaded successfully',
+                'song_file' => $audioUrl,
+                'drive_link' => $driveLink
+            ]);
+        } else {
+            return response()->json([
+                'message' => 'Song generation failed or no ID returned.',
+                'status' => 'error'
+            ], 500);
+        }
+    }
+
+    public function convertMp3ToMp4(Request $request)
+    {
+        try {
+            $request->validate([
+                'mp3_url' => 'required|url',
+                'title' => 'required|string'
+            ]);
+
+            Log::info('Starting MP3 to MP4 conversion', [
+                'mp3_url' => $request->mp3_url,
+                'title' => $request->title
+            ]);
+
+            // Convert MP3 to MP4
+            $mp4Path = $this->videoConverter->convertToMp4(
+                $request->mp3_url,
+                $request->title
+            );
+
+            Log::info('Conversion completed successfully', [
+                'mp4_path' => $mp4Path
+            ]);
+
+            return response()->json([
+                'success' => true,
+                'message' => 'Conversion completed successfully',
+                'data' => [
+                    'mp4_path' => $mp4Path
+                ]
+            ]);
+
+        } catch (\Exception $e) {
+            Log::error('Conversion failed: ' . $e->getMessage());
+            return response()->json([
+                'success' => false,
+                'message' => 'Conversion failed: ' . $e->getMessage()
+            ], 500);
+        }
     }
 }

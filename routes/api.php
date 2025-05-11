@@ -10,3 +10,5 @@ Route::get('/user', function (Request $request) {
 Route::post('/webhook/order', [WebhookController::class, 'handleOrder']);
 
 Route::post('/webhook/test', [WebhookController::class, 'handleWebhook']);
+
+Route::post('/webhook/convert-mp3-to-mp4', [WebhookController::class, 'convertMp3ToMp4']);

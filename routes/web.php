@@ -4,6 +4,8 @@ use App\Http\Controllers\ProfileController;
 use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\OrderController;
 use App\Http\Controllers\WebhookController;
+use App\Http\Controllers\GoogleAuthController;
+use App\Http\Controllers\YoutubeController;
 
 Route::get('/', function () {
     return view('welcome');
@@ -26,5 +28,8 @@ Route::get('/orders/create', [OrderController::class, 'create'])->name('orders.c
 Route::post('/orders', [OrderController::class, 'store'])->name('orders.store');
 Route::get('/song/{order}', [OrderController::class, 'showSong'])->name('song.show');
 Route::post('/webhook/test', [WebhookController::class, 'handleWebhook']);
+Route::get('/auth/google', [GoogleAuthController::class, 'initiate'])->name('google.auth');
+Route::get('/auth/google/callback', [GoogleAuthController::class, 'callback'])->name('google.callback');
+Route::post('/youtube/upload', [YoutubeController::class, 'uploadVideo'])->name('youtube.upload');
 
 require __DIR__.'/auth.php';

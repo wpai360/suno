@@ -3,11 +3,13 @@
 namespace App\Jobs;
 
 use App\Models\SongRequest;
-use FFMpeg;
+use App\Services\VideoConversionService;
+use App\Services\YouTubeService;
 use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Queue\InteractsWithQueue;
 use Illuminate\Queue\SerializesModels;
+use Illuminate\Support\Facades\Log;
 
 class ConvertMp3ToMp4Job implements ShouldQueue
 {
@@ -22,18 +24,36 @@ class ConvertMp3ToMp4Job implements ShouldQueue
 
     public function handle()
     {
-        // Use FFmpeg to convert MP3 to MP4
-        $mp3Path = $this->songRequest->mp3_path;
-        $mp4Path = storage_path('app/public/converted_video.mp4');
+        try {
+            // Convert MP3 to MP4
+            $videoConverter = new VideoConversionService();
+            $mp4Path = $videoConverter->convertToMp4(
+                $this->songRequest->mp3_path,
+                'AI Generated Song - ' . $this->songRequest->id
+            );
 
-        FFMpeg::fromDisk('public')
-            ->open($mp3Path)
-            ->addFilter('-f', 'mp4')
-            ->export()
-            ->toDisk('public')
-            ->inFormat(new \FFMpeg\Format\Video\X264)
-            ->save($mp4Path);
+            // Upload to YouTube
+            $youtubeService = new YouTubeService();
+            $videoId = $youtubeService->uploadVideo(
+                $mp4Path,
+                'AI Generated Song - ' . $this->songRequest->id,
+                'An AI-generated personalized song.'
+            );
 
-        $this->songRequest->update(['mp4_path' => $mp4Path]);
+            // Update the song request
+            $this->songRequest->update([
+                'mp4_path' => $mp4Path,
+                'youtube_id' => $videoId,
+                'status' => 'completed'
+            ]);
+
+            // Clean up the temporary MP4 file
+            $videoConverter->cleanup($mp4Path);
+
+        } catch (\Exception $e) {
+            Log::error('Conversion/Upload failed: ' . $e->getMessage());
+            $this->songRequest->update(['status' => 'failed']);
+            throw $e;
+        }
     }
 }
