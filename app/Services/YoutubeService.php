@@ -4,64 +4,76 @@ namespace App\Services;
 
 use Google\Client;
 use Google\Service\YouTube;
+use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Facades\Log;
 
 class YouTubeService
 {
-    protected $youtube;
+    protected $client;
+    protected $service;
 
     public function __construct()
     {
-        $client = new Client();
-        
-        // Load credentials from file
-        $credentials = json_decode(file_get_contents(storage_path('app/public/google_credentials.json')), true);
-        
-        // Set OAuth2 credentials
-        $client->setClientId($credentials['web']['client_id']);
-        $client->setClientSecret($credentials['web']['client_secret']);
-        $client->setRedirectUri($credentials['web']['redirect_uris'][0]);
-        
-        // Set the scopes for YouTube
-        $client->setScopes([
-            'https://www.googleapis.com/auth/youtube.upload',
-            'https://www.googleapis.com/auth/youtube'
-        ]);
-        
-        // Set the application name
-        $client->setApplicationName('Laravel YouTube Upload');
-        
-        // Generate access token using refresh token
-        if (file_exists(storage_path('app/public/google_access_token.json'))) {
-            $accessToken = json_decode(file_get_contents(storage_path('app/public/google_access_token.json')), true);
-            $client->setAccessToken($accessToken);
-            
-            if ($client->isAccessTokenExpired()) {
-                $client->fetchAccessTokenWithRefreshToken($client->getRefreshToken());
-                file_put_contents(storage_path('app/public/google_access_token.json'), json_encode($client->getAccessToken()));
-            }
-        }
-        
-        $this->youtube = new YouTube($client);
+        $this->client = new Client();
+        $this->initializeClient();
     }
 
-    public function uploadVideo($videoPath, $title, $description = '')
+    protected function initializeClient()
     {
         try {
-            $video = new YouTube\Video();
+            // Get the access token from storage
+            $accessToken = json_decode(Storage::disk('public')->get('google_access_token.json'), true);
             
-            // Set video metadata
-            $video->setSnippet(new YouTube\VideoSnippet());
-            $video->getSnippet()->setTitle($title);
-            $video->getSnippet()->setDescription($description);
-            $video->getSnippet()->setCategoryId("22"); // Music category
+            $this->client->setAccessToken($accessToken);
             
+            // Refresh token if expired
+            if ($this->client->isAccessTokenExpired()) {
+                if ($this->client->getRefreshToken()) {
+                    $this->client->fetchAccessTokenWithRefreshToken($this->client->getRefreshToken());
+                    Storage::disk('public')->put('google_access_token.json', json_encode($this->client->getAccessToken()));
+                }
+            }
+
+            // Disable SSL verification
+            $this->client->setHttpClient(new \GuzzleHttp\Client([
+                'verify' => false,
+                'curl' => [
+                    CURLOPT_SSL_VERIFYPEER => false,
+                    CURLOPT_SSL_VERIFYHOST => false
+                ]
+            ]));
+            
+            $this->service = new YouTube($this->client);
+        } catch (\Exception $e) {
+            Log::error('YouTube initialization error: ' . $e->getMessage());
+            throw $e;
+        }
+    }
+
+    public function uploadVideo($videoPath, $title, $description = '', $privacyStatus = 'private')
+    {
+        try {
+            if (!file_exists($videoPath)) {
+                throw new \Exception("Video file not found: $videoPath");
+            }
+
+            // Create video snippet
+            $snippet = new \Google\Service\YouTube\VideoSnippet();
+            $snippet->setTitle($title);
+            $snippet->setDescription($description);
+            $snippet->setTags(['AI Generated', 'Music']);
+
             // Set video status
-            $video->setStatus(new YouTube\VideoStatus());
-            $video->getStatus()->setPrivacyStatus("private"); // Start as private
-            
-            // Upload the video
-            $response = $this->youtube->videos->insert(
+            $status = new \Google\Service\YouTube\VideoStatus();
+            $status->setPrivacyStatus($privacyStatus);
+
+            // Create video object
+            $video = new \Google\Service\YouTube\Video();
+            $video->setSnippet($snippet);
+            $video->setStatus($status);
+
+            // Upload video
+            $response = $this->service->videos->insert(
                 'snippet,status',
                 $video,
                 [
@@ -70,11 +82,37 @@ class YouTubeService
                     'uploadType' => 'multipart'
                 ]
             );
-            
-            return $response->getId();
+
+            return [
+                'video_id' => $response->getId(),
+                'video_url' => 'https://www.youtube.com/watch?v=' . $response->getId()
+            ];
         } catch (\Exception $e) {
-            Log::error('YouTube upload failed: ' . $e->getMessage());
-            throw new \Exception('Failed to upload video to YouTube: ' . $e->getMessage());
+            Log::error('YouTube upload error: ' . $e->getMessage());
+            throw $e;
+        }
+    }
+
+    public function getVideoDetails($videoId)
+    {
+        try {
+            $response = $this->service->videos->listVideos('snippet,statistics', ['id' => $videoId]);
+            return $response->getItems()[0] ?? null;
+        } catch (\Exception $e) {
+            Log::error('YouTube get video details error: ' . $e->getMessage());
+            throw $e;
+        }
+    }
+
+    public function updateVideoPrivacy($videoId, $privacyStatus)
+    {
+        try {
+            $video = $this->service->videos->listVideos('status', ['id' => $videoId])->getItems()[0];
+            $video->getStatus()->setPrivacyStatus($privacyStatus);
+            return $this->service->videos->update('status', $video);
+        } catch (\Exception $e) {
+            Log::error('YouTube update privacy error: ' . $e->getMessage());
+            throw $e;
         }
     }
 }

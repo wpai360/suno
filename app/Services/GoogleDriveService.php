@@ -9,98 +9,85 @@ use Illuminate\Support\Facades\Log;
 
 class GoogleDriveService
 {
-    protected $drive;
+    protected $client;
+    protected $service;
     protected $videoConverter;
 
     public function __construct()
     {
-        $client = new Client();
-        
-        // Load credentials from file
-        $credentials = json_decode(file_get_contents(storage_path('app/public/google_credentials.json')), true);
-        
-        // Set OAuth2 credentials
-        $client->setClientId($credentials['web']['client_id']);
-        $client->setClientSecret($credentials['web']['client_secret']);
-        $client->setRedirectUri($credentials['web']['redirect_uris'][0]);
-        
-        // Set the scopes
-        $client->setScopes([
-            'https://www.googleapis.com/auth/drive.file',
-            'https://www.googleapis.com/auth/drive'
-        ]);
-        
-        // Set the application name
-        $client->setApplicationName('Laravel Drive Upload');
-        
-        // Generate access token using refresh token
-        if (Storage::disk('public')->exists('google_access_token.json')) {
-            $accessToken = json_decode(Storage::disk('public')->get('google_access_token.json'), true);
-            $client->setAccessToken($accessToken);
-            
-            if ($client->isAccessTokenExpired()) {
-                $client->fetchAccessTokenWithRefreshToken($client->getRefreshToken());
-                Storage::disk('public')->put('google_access_token.json', json_encode($client->getAccessToken()));
-            }
-        } else {
-            // If no access token exists, redirect to get authorization
-            $authUrl = $client->createAuthUrl();
-            header('Location: ' . $authUrl);
-            exit;
-        }
-        
-        // Disable SSL verification for Google API calls
-        $client->setHttpClient(new \GuzzleHttp\Client([
-            'verify' => false,
-            'curl' => [
-                CURLOPT_SSL_VERIFYPEER => false,
-                CURLOPT_SSL_VERIFYHOST => false
-            ]
-        ]));
-        
-        $this->drive = new Drive($client);
+        $this->client = new Client();
+        $this->initializeClient();
         $this->videoConverter = new VideoConversionService();
     }
 
-    public function upload($filePath, $convertToVideo = false)
+    protected function initializeClient()
     {
         try {
-            // If it's a URL, download it first
-            if (filter_var($filePath, FILTER_VALIDATE_URL)) {
-                $tempFile = $this->downloadFromUrl($filePath);
-                $filePath = $tempFile;
+            // Get the access token from storage
+            $accessToken = json_decode(Storage::disk('public')->get('google_access_token.json'), true);
+            
+            $this->client->setAccessToken($accessToken);
+            
+            // Refresh token if expired
+            if ($this->client->isAccessTokenExpired()) {
+                if ($this->client->getRefreshToken()) {
+                    $this->client->fetchAccessTokenWithRefreshToken($this->client->getRefreshToken());
+                    Storage::disk('public')->put('google_access_token.json', json_encode($this->client->getAccessToken()));
+                }
             }
 
-            // Convert to video if requested
-            if ($convertToVideo) {
-                $videoPath = $this->videoConverter->convertToMp4($filePath);
-                $filePath = $videoPath;
+            // Disable SSL verification
+            $this->client->setHttpClient(new \GuzzleHttp\Client([
+                'verify' => false,
+                'curl' => [
+                    CURLOPT_SSL_VERIFYPEER => false,
+                    CURLOPT_SSL_VERIFYHOST => false
+                ]
+            ]));
+            
+            $this->service = new Drive($this->client);
+        } catch (\Exception $e) {
+            Log::error('Google Drive initialization error: ' . $e->getMessage());
+            throw $e;
+        }
+    }
+
+    public function upload($filePath, $isVideo = false)
+    {
+        try {
+            if (!file_exists($filePath)) {
+                throw new \Exception("File not found: $filePath");
             }
 
-            $file = new Drive\DriveFile();
-            $file->setName(basename($filePath));
-            $file->setParents([env('GOOGLE_DRIVE_FOLDER_ID')]);
-
-            $content = file_get_contents($filePath);
-            $uploadedFile = $this->drive->files->create($file, [
-                'data' => $content,
-                'mimeType' => $convertToVideo ? 'video/mp4' : 'audio/mp3',
-                'uploadType' => 'multipart',
-                'fields' => 'id'
+            $fileMetadata = new \Google\Service\Drive\DriveFile([
+                'name' => basename($filePath),
+                'mimeType' => $isVideo ? 'video/mp4' : 'audio/mpeg'
             ]);
 
-            // Clean up temp files
-            if (isset($tempFile) && file_exists($tempFile)) {
-                unlink($tempFile);
-            }
-            if ($convertToVideo && isset($videoPath) && file_exists($videoPath)) {
-                $this->videoConverter->cleanup($videoPath);
-            }
+            $content = file_get_contents($filePath);
+            $file = $this->service->files->create($fileMetadata, [
+                'data' => $content,
+                'mimeType' => $isVideo ? 'video/mp4' : 'audio/mpeg',
+                'uploadType' => 'multipart',
+                'fields' => 'id, webViewLink'
+            ]);
 
-            return 'https://drive.google.com/file/d/' . $uploadedFile->id;
+            return $file->getWebViewLink();
         } catch (\Exception $e) {
-            Log::error('Google Drive upload failed: ' . $e->getMessage());
-            throw new \Exception('Failed to upload file to Google Drive: ' . $e->getMessage());
+            Log::error('Google Drive upload error: ' . $e->getMessage());
+            throw $e;
+        }
+    }
+
+    public function download($fileId, $savePath)
+    {
+        try {
+            $response = $this->service->files->get($fileId, ['alt' => 'media']);
+            file_put_contents($savePath, $response->getBody()->getContents());
+            return $savePath;
+        } catch (\Exception $e) {
+            Log::error('Google Drive download error: ' . $e->getMessage());
+            throw $e;
         }
     }
 

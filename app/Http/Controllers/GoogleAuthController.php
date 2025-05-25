@@ -6,35 +6,36 @@ use Google\Client;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Config;
 
 class GoogleAuthController extends Controller
 {
-    public function callback(Request $request)
+    protected function getGoogleClient()
     {
         $client = new Client();
         
-        // Load credentials from file
-        $credentials = json_decode(file_get_contents(storage_path('app/public/google_credentials.json')), true);
+        $client->setClientId(config('services.google.client_id'));
+        $client->setClientSecret(config('services.google.client_secret'));
+        $client->setRedirectUri(config('services.google.redirect'));
+        $client->setScopes(config('services.google.scopes'));
         
-        // Set OAuth2 credentials
-        $client->setClientId($credentials['web']['client_id']);
-        $client->setClientSecret($credentials['web']['client_secret']);
-        $client->setRedirectUri($credentials['web']['redirect_uris'][0]);
-        
-        // Set the scopes
-        $client->setScopes([
-            'https://www.googleapis.com/auth/drive.file',
-            'https://www.googleapis.com/auth/drive'
-        ]);
+        // Disable SSL verification for development
+        if (app()->environment('local')) {
+            $client->setHttpClient(new \GuzzleHttp\Client([
+                'verify' => false,
+                'curl' => [
+                    CURLOPT_SSL_VERIFYPEER => false,
+                    CURLOPT_SSL_VERIFYHOST => false
+                ]
+            ]));
+        }
 
-        // Disable SSL verification
-        $client->setHttpClient(new \GuzzleHttp\Client([
-            'verify' => false,
-            'curl' => [
-                CURLOPT_SSL_VERIFYPEER => false,
-                CURLOPT_SSL_VERIFYHOST => false
-            ]
-        ]));
+        return $client;
+    }
+
+    public function callback(Request $request)
+    {
+        $client = $this->getGoogleClient();
 
         if ($request->has('code')) {
             try {
@@ -46,16 +47,10 @@ class GoogleAuthController extends Controller
                 $token = $client->fetchAccessTokenWithAuthCode($code);
                 Log::info('Token received:', $token);
                 
-                // Ensure the directory exists
-                if (!Storage::disk('public')->exists('')) {
-                    Storage::disk('public')->makeDirectory('');
-                }
-                
                 // Save the token
-                $saved = Storage::disk('public')->put('google_access_token.json', json_encode($token));
-                Log::info('File saved: ' . ($saved ? 'true' : 'false'));
+                Storage::disk('public')->put('google_access_token.json', json_encode($token));
                 
-                return redirect()->route('dashboard')->with('success', 'Google Drive access granted!');
+                return redirect()->route('dashboard')->with('success', 'Google API access granted!');
             } catch (\Exception $e) {
                 Log::error('Error in callback: ' . $e->getMessage());
                 Log::error('Request data: ' . json_encode($request->all()));
@@ -68,17 +63,7 @@ class GoogleAuthController extends Controller
 
     public function initiate()
     {
-        $client = new Client();
-        $credentials = json_decode(file_get_contents(storage_path('app/public/google_credentials.json')), true);
-        
-        $client->setClientId($credentials['web']['client_id']);
-        $client->setClientSecret($credentials['web']['client_secret']);
-        $client->setRedirectUri($credentials['web']['redirect_uris'][0]);
-        $client->setScopes([
-            'https://www.googleapis.com/auth/drive.file',
-            'https://www.googleapis.com/auth/drive'
-        ]);
-        
+        $client = $this->getGoogleClient();
         $authUrl = $client->createAuthUrl();
         return redirect($authUrl);
     }

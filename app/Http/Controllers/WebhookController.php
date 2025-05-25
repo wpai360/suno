@@ -166,4 +166,75 @@ class WebhookController extends Controller
             ], 500);
         }
     }
+
+    public function testMp3ToMp4Conversion()
+    {
+        try {
+            $mp3File = base_path('input.mp3');
+            $imageFile = base_path('input.jpeg');
+            $outputFile = base_path('output.mp4');
+            $ffmpegPath = 'C:\\ffmpeg\\ffmpeg.exe';
+
+            // Check if input files exist
+            if (!file_exists($mp3File)) {
+                return response()->json(['error' => 'MP3 file not found'], 404);
+            }
+            if (!file_exists($imageFile)) {
+                return response()->json(['error' => 'Image file not found'], 404);
+            }
+
+            // Build the ffmpeg command
+            $cmd = "$ffmpegPath -loop 1 -i " . escapeshellarg($imageFile) . 
+                   " -i " . escapeshellarg($mp3File) . 
+                   " -c:v libx264 -c:a aac -b:a 192k -shortest -y " . escapeshellarg($outputFile) . 
+                   " 2>&1";
+
+            // Execute command
+            exec($cmd, $output, $return_var);
+
+            // Log the results
+            Log::info('FFmpeg conversion attempt', [
+                'command' => $cmd,
+                'return_code' => $return_var,
+                'output' => $output
+            ]);
+
+            if ($return_var === 0) {
+                // Upload to Google Drive
+                $driveService = app(GoogleDriveService::class);
+                $driveLink = $driveService->upload($outputFile, true);
+
+                // Upload to YouTube
+                $youtubeService = app(YouTubeService::class);
+                $youtubeResult = $youtubeService->uploadVideo(
+                    $outputFile,
+                    'AI Generated Music Video',
+                    'This is an AI-generated music video',
+                    'private'
+                );
+
+                return response()->json([
+                    'success' => true,
+                    'message' => 'Conversion and upload successful',
+                    'data' => [
+                        'output_file' => $outputFile,
+                        'drive_link' => $driveLink,
+                        'youtube' => $youtubeResult
+                    ]
+                ]);
+            } else {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Conversion failed',
+                    'error_output' => $output
+                ], 500);
+            }
+        } catch (\Exception $e) {
+            Log::error('Conversion error: ' . $e->getMessage());
+            return response()->json([
+                'success' => false,
+                'message' => 'Error during conversion: ' . $e->getMessage()
+            ], 500);
+        }
+    }
 }
