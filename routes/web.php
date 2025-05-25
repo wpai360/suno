@@ -21,13 +21,11 @@ Route::middleware('auth')->group(function () {
     Route::delete('/profile', [ProfileController::class, 'destroy'])->name('profile.destroy');
 });
 
-
-
 Route::get('/orders', [OrderController::class, 'index'])->name('orders.index');
 Route::get('/orders/create', [OrderController::class, 'create'])->name('orders.create');
 Route::post('/orders', [OrderController::class, 'store'])->name('orders.store');
 Route::get('/song/{order}', [OrderController::class, 'showSong'])->name('song.show');
-Route::post('/webhook/test', [WebhookController::class, 'handleWebhook']);
+
 Route::get('/test-conversion', [WebhookController::class, 'testMp3ToMp4Conversion'])->name('test.conversion');
 Route::get('/auth/google', [GoogleAuthController::class, 'initiate'])->name('google.auth');
 Route::get('/auth/google/callback', [GoogleAuthController::class, 'callback'])->name('google.callback');

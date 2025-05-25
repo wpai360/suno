@@ -2,41 +2,72 @@
 
 namespace App\Jobs;
 
-use App\Models\SongRequest;
+use App\Models\Order;
+use App\Services\ChatGPTService;
 use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Queue\ShouldQueue;
+use Illuminate\Foundation\Bus\Dispatchable;
 use Illuminate\Queue\InteractsWithQueue;
 use Illuminate\Queue\SerializesModels;
-use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Facades\Log;
 
 class GenerateLyricsJob implements ShouldQueue
 {
-    use Queueable, InteractsWithQueue, SerializesModels;
+    use Dispatchable, InteractsWithQueue, Queueable, SerializesModels;
 
-    protected $songRequest;
+    protected $order;
+    protected $customerName;
+    protected $city;
+    protected $items;
+    protected $groupSize;
 
-    public function __construct(SongRequest $songRequest)
+    public function __construct(Order $order, $customerName, $city, $items, $groupSize)
     {
-        $this->songRequest = $songRequest;
+        $this->order = $order;
+        $this->customerName = $customerName;
+        $this->city = $city;
+        $this->items = $items;
+        $this->groupSize = $groupSize;
     }
 
-    public function handle()
+    public function handle(ChatGPTService $chatGPTService)
     {
-        // Call ChatGPT API to generate lyrics
-        $response = Http::post('https://api.openai.com/v1/completions', [
-            'model' => 'gpt-4',
-            'prompt' => 'Generate song lyrics based on... (context)',
-            'max_tokens' => 1000,
-        ]);
-
-        if ($response->successful()) {
-            $lyrics = $response->json()['choices'][0]['text'];
-            $this->songRequest->update([
-                'lyrics' => $lyrics,
-                'status' => 'generating',
+        try {
+            Log::info('Starting lyrics generation', [
+                'order_id' => $this->order->id,
+                'customer' => $this->customerName
             ]);
-        } else {
-            $this->fail(new \Exception('Failed to generate lyrics.'));
+
+            // Generate lyrics using ChatGPT
+            $lyrics = $chatGPTService->generateLyrics(
+                $this->customerName,
+                $this->city,
+                $this->items,
+                $this->groupSize
+            );
+
+            // Update order with lyrics
+            $this->order->update([
+                'lyrics' => $lyrics,
+                'status' => 'lyrics_generated'
+            ]);
+
+            Log::info('Lyrics generated successfully', [
+                'order_id' => $this->order->id
+            ]);
+
+            // Dispatch the next job in the chain
+            GenerateSongFromLyricsJob::dispatch($this->order, $lyrics)
+                ->onQueue('songs');
+
+        } catch (\Exception $e) {
+            Log::error('Lyrics generation failed', [
+                'order_id' => $this->order->id,
+                'error' => $e->getMessage()
+            ]);
+            
+            $this->order->update(['status' => 'failed']);
+            throw $e;
         }
     }
 }

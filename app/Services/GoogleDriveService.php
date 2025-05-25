@@ -91,7 +91,7 @@ class GoogleDriveService
         }
     }
 
-    protected function downloadFromUrl($url)
+    public function downloadFromUrl($url)
     {
         try {
             // Create temp directory if it doesn't exist

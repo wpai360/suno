@@ -2,57 +2,69 @@
 
 namespace App\Jobs;
 
-use App\Models\SongRequest;
+use App\Models\Order;
 use App\Services\VideoConversionService;
-use App\Services\YouTubeService;
 use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Queue\ShouldQueue;
+use Illuminate\Foundation\Bus\Dispatchable;
 use Illuminate\Queue\InteractsWithQueue;
 use Illuminate\Queue\SerializesModels;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Bus;
 
 class ConvertMp3ToMp4Job implements ShouldQueue
 {
-    use Queueable, InteractsWithQueue, SerializesModels;
+    use Dispatchable, InteractsWithQueue, Queueable, SerializesModels;
 
-    protected $songRequest;
+    protected $order;
+    protected $audioUrl;
 
-    public function __construct(SongRequest $songRequest)
+    public function __construct(Order $order, $audioUrl)
     {
-        $this->songRequest = $songRequest;
+        $this->order = $order;
+        $this->audioUrl = $audioUrl;
     }
 
-    public function handle()
+    public function handle(VideoConversionService $videoConverter)
     {
         try {
-            // Convert MP3 to MP4
-            $videoConverter = new VideoConversionService();
-            $mp4Path = $videoConverter->convertToMp4(
-                $this->songRequest->mp3_path,
-                'AI Generated Song - ' . $this->songRequest->id
-            );
+            // Refresh the order model to get the latest data, although not strictly needed here yet
+            $this->order->refresh();
 
-            // Upload to YouTube
-            $youtubeService = new YouTubeService();
-            $videoId = $youtubeService->uploadVideo(
-                $mp4Path,
-                'AI Generated Song - ' . $this->songRequest->id,
-                'An AI-generated personalized song.'
-            );
-
-            // Update the song request
-            $this->songRequest->update([
-                'mp4_path' => $mp4Path,
-                'youtube_id' => $videoId,
-                'status' => 'completed'
+            Log::info('Starting MP3 to MP4 conversion', [
+                'order_id' => $this->order->id,
+                'audio_url' => $this->audioUrl
             ]);
 
-            // Clean up the temporary MP4 file
-            $videoConverter->cleanup($mp4Path);
+            // Convert MP3 to MP4
+            $videoTitle = "AI Song for " . $this->order->customer_name . " from " . $this->order->city;
+            $mp4Path = $videoConverter->convertToMp4($this->audioUrl, $videoTitle);
+
+            // Update order with video path and status
+            $this->order->update([
+                'video_file' => $mp4Path,
+                'status' => 'video_converted'
+            ]);
+
+            Log::info('Video conversion completed successfully', [
+                'order_id' => $this->order->id,
+                'video_path' => $mp4Path
+            ]);
+
+            // Now dispatch the next jobs that depend on the video file, specifying their queues
+            Bus::chain([
+                (new UploadToGDriveJob($this->order, $mp4Path))->onQueue('drive'), // Pass the generated video file path and set queue
+                (new UploadToYouTubeJob($this->order, $mp4Path))->onQueue('youtube'), // Pass the generated video file path and set queue
+                (new CleanupVideoFileJob($mp4Path))->onQueue('cleanup') // Add cleanup job at the end
+            ])->dispatch();
 
         } catch (\Exception $e) {
-            Log::error('Conversion/Upload failed: ' . $e->getMessage());
-            $this->songRequest->update(['status' => 'failed']);
+            Log::error('Video conversion failed', [
+                'order_id' => $this->order->id,
+                'error' => $e->getMessage()
+            ]);
+            
+            $this->order->update(['status' => 'failed']);
             throw $e;
         }
     }

@@ -24,6 +24,15 @@ return new class extends Migration
             if (!Schema::hasColumn('orders', 'group_size')) {
                 $table->integer('group_size')->default(1);
             }
+            if (!Schema::hasColumn('orders', 'audio_file')) {
+                $table->string('audio_file')->nullable()->after('lyrics');
+            }
+            if (!Schema::hasColumn('orders', 'video_file')) {
+                $table->string('video_file')->nullable()->after('audio_file');
+            }
+            if (!Schema::hasColumn('orders', 'youtube_id')) {
+                $table->string('youtube_id')->nullable()->after('youtube_link');
+            }
         });
     }
 
@@ -35,7 +44,10 @@ return new class extends Migration
                 'status',
                 'lyrics',
                 'drive_link',
-                'group_size'
+                'group_size',
+                'audio_file',
+                'video_file',
+                'youtube_id'
             ]);
         });
     }

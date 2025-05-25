@@ -10,6 +10,7 @@ use App\Services\GoogleDriveService;
 use App\Models\Order;
 use App\Services\VideoConversionService;
 use Illuminate\Support\Facades\Log;
+use App\Jobs\GenerateLyricsJob;
 
 class WebhookController extends Controller
 {
@@ -64,65 +65,49 @@ class WebhookController extends Controller
 
     public function handleWebhook(Request $request)
     {
-        $data = $request->all();
-        
-        // Extract necessary order details
-        $orderDetails = [
-            'items' => collect($data['items'])->pluck('name')->toArray(),
-            'total' => $data['payment']['amount'] / 100,
-            'source' => $data['by'],
-            'customer' => $data['customer']['name'] ?? 'Customer',
-            'city' => $data['deliveryAddress']['city'] ?? 'Unknown'
-        ];
-
-        // Determine group size estimation
-        $groupSize = ($orderDetails['total'] > 20 || count($orderDetails['items']) >= 4) ? 'a group' : 'solo';
-
-        // Generate lyrics using ChatGPT
-        $lyrics = $this->chatGPTService->generateLyrics(
-            $orderDetails['customer'], 
-            $orderDetails['city'], 
-            $orderDetails['items'], 
-            $groupSize
-        );
-
-        // Generate the song using Suno API
-        $songFile = $this->sunoService->generateSongMureka($lyrics);
-
-        if (!empty($songFile['id'])) {
-            $songStatus = $this->sunoService->getSongStatus($songFile['id']);
+        try {
+            $data = $request->all();
             
-            // Get the first audio URL from the choices
-            $audioUrl = $songStatus['choices'][0]['url'];
-            
-            // Convert MP3 to MP4
-            $videoTitle = "AI Song for " . $orderDetails['customer'] . " from " . $orderDetails['city'];
-            $mp4Path = $this->videoConverter->convertToMp4($audioUrl, $videoTitle);
-            
-            // Upload to Google Drive
-            $driveLink = app(GoogleDriveService::class)->upload($mp4Path, true); // true for video
+            // Extract necessary order details
+            $orderDetails = [
+                'items' => collect($data['items'] ?? [])->pluck('name')->toArray(),
+                'total' => $data['payment']['amount'] / 100,
+                'source' => $data['by'] ?? 'web',
+                'customer' => $data['customer']['name'] ?? 'Customer',
+                'city' => $data['deliveryAddress']['city'] ?? 'Unknown'
+            ];
 
-            // Store order and song details
-            // $order = Order::create([
-            //     'customer_name' => $orderDetails['customer'],
-            //     'city' => $orderDetails['city'],
-            //     'order_total' => $orderDetails['total'],
-            //     'status' => 'completed',
-            //     'lyrics' => $lyrics,
-            //     'audio_file' => $audioUrl,
-            //     'drive_link' => $driveLink,
-            //     'group_size' => $groupSize
-            // ]);
+            // Determine group size estimation
+            $groupSize = ($orderDetails['total'] > 20 || count($orderDetails['items']) >= 4) ? 'a group' : 'solo';
 
-            return response()->json([
-                'message' => 'Song generated, converted to video, and uploaded successfully',
-                'song_file' => $audioUrl,
-                'drive_link' => $driveLink
+            // Create order record
+            $order = Order::create([
+                'customer_name' => $orderDetails['customer'],
+                'city' => $orderDetails['city'],
+                'order_total' => $orderDetails['total'],
+                'group_size' => $groupSize,
+                'items' => json_encode($orderDetails['items']),
+                'status' => 'pending'
             ]);
-        } else {
+
+            // Start the job chain
+            GenerateLyricsJob::dispatch($order, $orderDetails['customer'], $orderDetails['city'], $orderDetails['items'], $groupSize)
+                ->onQueue('lyrics');
+
             return response()->json([
-                'message' => 'Song generation failed or no ID returned.',
-                'status' => 'error'
+                'message' => 'Order received and processing started',
+                'order_id' => $order->id
+            ]);
+
+        } catch (\Exception $e) {
+            Log::error('Webhook processing failed', [
+                'error' => $e->getMessage(),
+                'data' => $request->all()
+            ]);
+
+            return response()->json([
+                'message' => 'Failed to process webhook',
+                'error' => $e->getMessage()
             ], 500);
         }
     }

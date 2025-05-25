@@ -17,10 +17,11 @@ return new class extends Migration
             $table->string('city');
             $table->decimal('order_total', 8, 2);
             $table->string('group_size');
-            $table->json('items');
-            $table->text('lyrics');
+            $table->json('items')->nullable();
+            $table->text('lyrics')->nullable();
             $table->string('drive_link')->nullable();
             $table->string('youtube_link')->nullable();
+            $table->string('status')->default('pending');
             $table->timestamps();
         });
     }
