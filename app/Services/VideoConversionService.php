@@ -27,7 +27,7 @@ class VideoConversionService
         try {
             // Generate output path
             $outputPath = $this->tempDir . '/video_' . uniqid() . '.mp4';
-            $imagePath = public_path('images/default-thumbnail.jpg');
+            $imagePath = public_path('images/logo.jpg');
             
             // Build the ffmpeg command
             $cmd = sprintf(
