@@ -6,12 +6,18 @@ use App\Models\Order;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
 use App\Services\GoogleDriveService;
+use SimpleSoftwareIO\QrCode\Facades\QrCode;
 
 class OrderController extends Controller
 {
     public function index()
     {
         $orders = Order::all();
+
+        foreach ($orders as $order) {
+            $order->qrcode = base64_encode(QrCode::size(150)->generate(route('song.show', $order->id)));
+        }
+
         return view('index', compact('orders'));
     }
 
@@ -67,10 +73,13 @@ class OrderController extends Controller
 
     public function showSong(Order $order)
     {
-        // Replace with your actual logic to get the song URL, youtube, and gdrive links
-        $songUrl = '/path/to/song/' . $order->id . '.mp3';
-        $youtubeUrl = 'https://youtube.com/yourvideo/' . $order->id;
-        $gdriveUrl = 'https://drive.google.com/yourfile/' . $order->id;
+        // Use the actual youtube_link from the order model
+        $youtubeUrl = $order->youtube_link;
+        
+        // You might still need the songUrl and gdriveUrl depending on the song view
+        // For now, let's keep the placeholders or fetch actual data if available
+        $songUrl = $order->audio_file; // Assuming audio_file stores the direct song URL or path
+        $gdriveUrl = $order->drive_link; // Assuming drive_link stores the Google Drive URL
 
         return view('song', compact('order', 'songUrl', 'youtubeUrl', 'gdriveUrl'));
     }
