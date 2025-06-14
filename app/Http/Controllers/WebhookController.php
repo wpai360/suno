@@ -158,7 +158,6 @@ class WebhookController extends Controller
             $mp3File = base_path('input.mp3');
             $imageFile = base_path('input.jpeg');
             $outputFile = base_path('output.mp4');
-            $ffmpegPath = 'C:\\ffmpeg\\ffmpeg.exe';
 
             // Check if input files exist
             if (!file_exists($mp3File)) {
@@ -168,52 +167,36 @@ class WebhookController extends Controller
                 return response()->json(['error' => 'Image file not found'], 404);
             }
 
-            // Build the ffmpeg command
-            $cmd = "$ffmpegPath -loop 1 -i " . escapeshellarg($imageFile) . 
-                   " -i " . escapeshellarg($mp3File) . 
-                   " -c:v libx264 -c:a aac -b:a 192k -shortest -y " . escapeshellarg($outputFile) . 
-                   " 2>&1";
-
-            // Execute command
-            exec($cmd, $output, $return_var);
+            // Use the VideoConversionService
+            $outputPath = $this->videoConverter->convertToMp4($mp3File, 'Test Video');
 
             // Log the results
-            Log::info('FFmpeg conversion attempt', [
-                'command' => $cmd,
-                'return_code' => $return_var,
-                'output' => $output
+            Log::info('FFmpeg conversion completed', [
+                'output_path' => $outputPath
             ]);
 
-            if ($return_var === 0) {
-                // Upload to Google Drive
-                $driveService = app(GoogleDriveService::class);
-                $driveLink = $driveService->upload($outputFile, true);
+            // Upload to Google Drive
+            $driveService = app(GoogleDriveService::class);
+            $driveLink = $driveService->upload($outputPath, true);
 
-                // Upload to YouTube
-                $youtubeService = app(YouTubeService::class);
-                $youtubeResult = $youtubeService->uploadVideo(
-                    $outputFile,
-                    'AI Generated Music Video',
-                    'This is an AI-generated music video',
-                    'private'
-                );
+            // Upload to YouTube
+            $youtubeService = app(YouTubeService::class);
+            $youtubeResult = $youtubeService->uploadVideo(
+                $outputPath,
+                'AI Generated Music Video',
+                'This is an AI-generated music video',
+                'private'
+            );
 
-                return response()->json([
-                    'success' => true,
-                    'message' => 'Conversion and upload successful',
-                    'data' => [
-                        'output_file' => $outputFile,
-                        'drive_link' => $driveLink,
-                        'youtube' => $youtubeResult
-                    ]
-                ]);
-            } else {
-                return response()->json([
-                    'success' => false,
-                    'message' => 'Conversion failed',
-                    'error_output' => $output
-                ], 500);
-            }
+            return response()->json([
+                'success' => true,
+                'message' => 'Conversion and upload successful',
+                'data' => [
+                    'output_file' => $outputFile,
+                    'drive_link' => $driveLink,
+                    'youtube' => $youtubeResult
+                ]
+            ]);
         } catch (\Exception $e) {
             Log::error('Conversion error: ' . $e->getMessage());
             return response()->json([
