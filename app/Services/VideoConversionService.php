@@ -12,14 +12,40 @@ class VideoConversionService
 
     public function __construct()
     {
-        // Set FFmpeg path - adjust this based on your system
-        $this->ffmpegPath = 'C:\\ffmpeg\\ffmpeg.exe';
+        // Set FFmpeg path based on environment or OS
+        $this->ffmpegPath = env('FFMPEG_PATH', $this->getDefaultFFmpegPath());
         $this->tempDir = storage_path('app/public/temp');
         
         // Create temp directory if it doesn't exist
         if (!file_exists($this->tempDir)) {
             mkdir($this->tempDir, 0755, true);
         }
+    }
+
+    /**
+     * Get the default FFmpeg path based on the operating system
+     */
+    protected function getDefaultFFmpegPath(): string
+    {
+        if (PHP_OS_FAMILY === 'Windows') {
+            return 'C:\\ffmpeg\\ffmpeg.exe';
+        }
+        
+        // For Linux/Unix systems
+        $possiblePaths = [
+            '/usr/bin/ffmpeg',
+            '/usr/local/bin/ffmpeg',
+            '/opt/ffmpeg/bin/ffmpeg'
+        ];
+        
+        foreach ($possiblePaths as $path) {
+            if (file_exists($path)) {
+                return $path;
+            }
+        }
+        
+        // If no path is found, return the most common Linux path
+        return '/usr/bin/ffmpeg';
     }
 
     public function convertToMp4($mp3Path, $title = 'Song Video')

@@ -6,6 +6,7 @@ use App\Http\Controllers\OrderController;
 use App\Http\Controllers\WebhookController;
 use App\Http\Controllers\GoogleAuthController;
 use App\Http\Controllers\YoutubeController;
+use App\Http\Controllers\QrCodeController;
 
 Route::get('/', function () {
     return view('welcome');
@@ -30,5 +31,7 @@ Route::get('/test-conversion', [WebhookController::class, 'testMp3ToMp4Conversio
 Route::get('/auth/google', [GoogleAuthController::class, 'initiate'])->name('google.auth');
 Route::get('/auth/google/callback', [GoogleAuthController::class, 'callback'])->name('google.callback');
 Route::post('/youtube/upload', [YoutubeController::class, 'uploadVideo'])->name('youtube.upload');
+
+Route::get('/qrcode/demo', [QrCodeController::class, 'demo']);
 
 require __DIR__.'/auth.php';
