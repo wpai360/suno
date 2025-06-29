@@ -3,7 +3,7 @@
 namespace App\Jobs;
 
 use App\Models\Order;
-use App\Services\ChatGPTService;
+use App\Services\ChatgptService;
 use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Bus\Dispatchable;
@@ -30,7 +30,7 @@ class GenerateLyricsJob implements ShouldQueue
         $this->groupSize = $groupSize;
     }
 
-    public function handle(ChatGPTService $chatGPTService)
+    public function handle(ChatgptService $chatGPTService)
     {
         try {
             Log::info('Starting lyrics generation', [

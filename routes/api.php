@@ -20,7 +20,7 @@ Route::middleware('auth:sanctum')->get('/user', function (Request $request) {
 });
 
 // Webhook routes
-Route::post('/webhook/test', [WebhookController::class, 'handleWebhook']);
+Route::post('/webhook/sunoqrs', [WebhookController::class, 'handleWebhook']);
 Route::post('/webhook/order', [WebhookController::class, 'handleOrder']);
 
 Route::post('/webhook/convert-mp3-to-mp4', [WebhookController::class, 'convertMp3ToMp4']);
