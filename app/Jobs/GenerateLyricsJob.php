@@ -58,7 +58,7 @@ class GenerateLyricsJob implements ShouldQueue
 
             // Dispatch the next job in the chain
             GenerateSongFromLyricsJob::dispatch($this->order, $lyrics)
-                ->onQueue('songs');
+                ->onQueue($this->order->getQueueName());
 
         } catch (\Exception $e) {
             Log::error('Lyrics generation failed', [

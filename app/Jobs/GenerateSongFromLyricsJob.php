@@ -52,7 +52,7 @@ class GenerateSongFromLyricsJob implements ShouldQueue
 
                 // Dispatch the next job (video conversion)
                 ConvertMp3ToMp4Job::dispatch($this->order, $audioUrl)
-                    ->onQueue('video');
+                    ->onQueue($this->order->getQueueName());
 
             } else {
                 throw new \Exception('Song generation failed or no ID returned');

@@ -92,7 +92,7 @@ class WebhookController extends Controller
 
             // Start the job chain
             GenerateLyricsJob::dispatch($order, $orderDetails['customer'], $orderDetails['city'], $orderDetails['items'], $groupSize)
-                ->onQueue('lyrics');
+                ->onQueue($order->getQueueName());
 
             return response()->json([
                 'message' => 'Order received and processing started',

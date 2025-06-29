@@ -65,7 +65,7 @@ class UploadToYouTubeJob implements ShouldQueue
 
             // Dispatch PDF generation job after YouTube upload is complete
             \App\Jobs\GenerateAndUploadPdfJob::dispatch($this->order)
-                ->onQueue('pdf');
+                ->onQueue($this->order->getQueueName());
 
         } catch (\Exception $e) {
             Log::error('YouTube upload failed', [

@@ -151,4 +151,22 @@ Route::get('/test/pdf-generate', function() {
     }
 })->name('test.pdf.generate');
 
+// Test route to demonstrate queue distribution
+Route::get('/test/queue-distribution/{orderId}', function($orderId) {
+    $order = \App\Models\Order::find($orderId);
+    if (!$order) {
+        return response()->json(['error' => 'Order not found'], 404);
+    }
+    
+    $queueName = $order->getQueueName();
+    $queueNumber = $order->id % 10;
+    
+    return response()->json([
+        'order_id' => $order->id,
+        'queue_number' => $queueNumber,
+        'queue_name' => $queueName,
+        'calculation' => "{$order->id} % 10 = {$queueNumber}"
+    ]);
+})->name('test.queue.distribution');
+
 require __DIR__.'/auth.php';

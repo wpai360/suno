@@ -90,7 +90,8 @@ class OrderController extends Controller
     public function generatePdf(Order $order)
     {
         try {
-            \App\Jobs\GenerateAndUploadPdfJob::dispatch($order);
+            \App\Jobs\GenerateAndUploadPdfJob::dispatch($order)
+                ->onQueue($order->getQueueName());
             
             return response()->json([
                 'success' => true,

@@ -35,4 +35,14 @@ class Order extends Model
         'items' => '[]',
         'status' => 'pending'
     ];
+
+    /**
+     * Get the queue name for this order based on order ID
+     * Distributes orders across 10 queues (queue0 to queue9)
+     */
+    public function getQueueName(): string
+    {
+        $queueNumber = $this->id % 10;
+        return "queue{$queueNumber}";
+    }
 }

@@ -53,9 +53,9 @@ class ConvertMp3ToMp4Job implements ShouldQueue
 
             // Now dispatch the next jobs that depend on the video file, specifying their queues
             Bus::chain([
-                (new UploadToGDriveJob($this->order, $mp4Path))->onQueue('drive'), // Pass the generated video file path and set queue
-                (new UploadToYouTubeJob($this->order, $mp4Path))->onQueue('youtube'), // Pass the generated video file path and set queue
-                (new CleanupVideoFileJob($mp4Path))->onQueue('cleanup') // Add cleanup job at the end
+                (new UploadToGDriveJob($this->order, $mp4Path))->onQueue($this->order->getQueueName()),
+                (new UploadToYouTubeJob($this->order, $mp4Path))->onQueue($this->order->getQueueName()),
+                (new CleanupVideoFileJob($mp4Path))->onQueue($this->order->getQueueName())
             ])->dispatch();
 
         } catch (\Exception $e) {
