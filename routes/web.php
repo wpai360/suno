@@ -28,8 +28,22 @@ Route::post('/orders', [OrderController::class, 'store'])->name('orders.store');
 Route::get('/song/{order}', [OrderController::class, 'showSong'])->name('song.show');
 
 Route::get('/test-conversion', [WebhookController::class, 'testMp3ToMp4Conversion'])->name('test.conversion');
+
+// Google Authentication Routes
 Route::get('/auth/google', [GoogleAuthController::class, 'initiate'])->name('google.auth');
 Route::get('/auth/google/callback', [GoogleAuthController::class, 'callback'])->name('google.callback');
+
+// Google Token Management Routes
+Route::get('/auth/google/token-status', [GoogleAuthController::class, 'tokenStatus'])->name('google.token.status');
+Route::post('/auth/google/refresh-token', [GoogleAuthController::class, 'refreshToken'])->name('google.token.refresh');
+Route::delete('/auth/google/clear-token', [GoogleAuthController::class, 'clearToken'])->name('google.token.clear');
+
+// Test route for manual token refresh (for development/testing)
+Route::get('/test/google-refresh', function() {
+    \App\Jobs\RefreshGoogleTokenJob::dispatch();
+    return response()->json(['message' => 'Token refresh job dispatched']);
+})->name('test.google.refresh');
+
 Route::post('/youtube/upload', [YoutubeController::class, 'uploadVideo'])->name('youtube.upload');
 
 Route::get('/qrcode/demo', [QrCodeController::class, 'demo']);

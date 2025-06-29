@@ -2,48 +2,28 @@
 
 namespace App\Services;
 
-use Google\Client;
 use Google\Service\YouTube;
-use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Facades\Log;
 
 class YouTubeService
 {
     protected $client;
     protected $service;
+    protected $tokenService;
 
-    public function __construct()
+    public function __construct(GoogleTokenService $tokenService)
     {
-        $this->client = new Client();
-        $this->initializeClient();
+        $this->tokenService = $tokenService;
     }
 
     protected function initializeClient()
     {
         try {
-            // Get the access token from storage
-            $accessToken = json_decode(Storage::disk('public')->get('google_access_token.json'), true);
-            
-            $this->client->setAccessToken($accessToken);
-            
-            // Refresh token if expired
-            if ($this->client->isAccessTokenExpired()) {
-                if ($this->client->getRefreshToken()) {
-                    $this->client->fetchAccessTokenWithRefreshToken($this->client->getRefreshToken());
-                    Storage::disk('public')->put('google_access_token.json', json_encode($this->client->getAccessToken()));
-                }
-            }
-
-            // Disable SSL verification
-            $this->client->setHttpClient(new \GuzzleHttp\Client([
-                'verify' => false,
-                'curl' => [
-                    CURLOPT_SSL_VERIFYPEER => false,
-                    CURLOPT_SSL_VERIFYHOST => false
-                ]
-            ]));
-            
+            // Get client with valid token from token service
+            $this->client = $this->tokenService->getClient();
             $this->service = new YouTube($this->client);
+            
+            Log::info('YouTube client initialized successfully');
         } catch (\Exception $e) {
             Log::error('YouTube initialization error: ' . $e->getMessage());
             throw $e;
@@ -56,6 +36,9 @@ class YouTubeService
             if (!file_exists($videoPath)) {
                 throw new \Exception("Video file not found: $videoPath");
             }
+
+            // Initialize client with fresh token
+            $this->initializeClient();
 
             // Create video snippet
             $snippet = new \Google\Service\YouTube\VideoSnippet();
@@ -83,6 +66,11 @@ class YouTubeService
                 ]
             );
 
+            Log::info('Video uploaded to YouTube successfully', [
+                'video_id' => $response->getId(),
+                'title' => $title
+            ]);
+
             return [
                 'video_id' => $response->getId(),
                 'video_url' => 'https://www.youtube.com/watch?v=' . $response->getId()
@@ -96,6 +84,9 @@ class YouTubeService
     public function getVideoDetails($videoId)
     {
         try {
+            // Initialize client with fresh token
+            $this->initializeClient();
+
             $response = $this->service->videos->listVideos('snippet,statistics', ['id' => $videoId]);
             return $response->getItems()[0] ?? null;
         } catch (\Exception $e) {
@@ -107,9 +98,20 @@ class YouTubeService
     public function updateVideoPrivacy($videoId, $privacyStatus)
     {
         try {
+            // Initialize client with fresh token
+            $this->initializeClient();
+
             $video = $this->service->videos->listVideos('status', ['id' => $videoId])->getItems()[0];
             $video->getStatus()->setPrivacyStatus($privacyStatus);
-            return $this->service->videos->update('status', $video);
+            
+            $result = $this->service->videos->update('status', $video);
+            
+            Log::info('YouTube video privacy updated successfully', [
+                'video_id' => $videoId,
+                'privacy_status' => $privacyStatus
+            ]);
+            
+            return $result;
         } catch (\Exception $e) {
             Log::error('YouTube update privacy error: ' . $e->getMessage());
             throw $e;
