@@ -42,22 +42,49 @@ class GoogleDriveService
             // Initialize client with fresh token
             $this->initializeClient();
 
+            // Determine MIME type based on file extension
+            $extension = strtolower(pathinfo($filePath, PATHINFO_EXTENSION));
+            $mimeType = 'application/octet-stream'; // default
+            
+            switch ($extension) {
+                case 'mp4':
+                    $mimeType = 'video/mp4';
+                    break;
+                case 'mp3':
+                    $mimeType = 'audio/mpeg';
+                    break;
+                case 'pdf':
+                    $mimeType = 'application/pdf';
+                    break;
+                case 'jpg':
+                case 'jpeg':
+                    $mimeType = 'image/jpeg';
+                    break;
+                case 'png':
+                    $mimeType = 'image/png';
+                    break;
+                default:
+                    // Use the isVideo parameter as fallback for backward compatibility
+                    $mimeType = $isVideo ? 'video/mp4' : 'audio/mpeg';
+            }
+
             $fileMetadata = new \Google\Service\Drive\DriveFile([
                 'name' => basename($filePath),
-                'mimeType' => $isVideo ? 'video/mp4' : 'audio/mpeg'
+                'mimeType' => $mimeType
             ]);
 
             $content = file_get_contents($filePath);
             $file = $this->service->files->create($fileMetadata, [
                 'data' => $content,
-                'mimeType' => $isVideo ? 'video/mp4' : 'audio/mpeg',
+                'mimeType' => $mimeType,
                 'uploadType' => 'multipart',
                 'fields' => 'id, webViewLink'
             ]);
 
             Log::info('File uploaded to Google Drive successfully', [
                 'file_id' => $file->getId(),
-                'file_name' => basename($filePath)
+                'file_name' => basename($filePath),
+                'mime_type' => $mimeType
             ]);
 
             return $file->getWebViewLink();

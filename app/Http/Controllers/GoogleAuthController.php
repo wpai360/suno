@@ -46,7 +46,21 @@ class GoogleAuthController extends Controller
             
             // Exchange the authorization code for an access token
             $token = $client->fetchAccessTokenWithAuthCode($code);
-            Log::info('Google token received successfully');
+            Log::info('Google token received successfully', [
+                'has_access_token' => isset($token['access_token']),
+                'has_refresh_token' => isset($token['refresh_token']),
+                'expires_in' => $token['expires_in'] ?? 'not_set',
+                'token_type' => $token['token_type'] ?? 'not_set'
+            ]);
+            
+            // Check if we got a refresh token
+            if (!isset($token['refresh_token'])) {
+                Log::warning('No refresh token received from Google OAuth', [
+                    'token_keys' => array_keys($token),
+                    'error' => $token['error'] ?? 'no_error'
+                ]);
+                // Continue anyway, but log the warning
+            }
             
             // Save the token using the token service
             $this->tokenService->saveToken($token);

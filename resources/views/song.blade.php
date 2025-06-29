@@ -38,6 +38,17 @@
             </div>
         </div>
 
+        {{-- PDF Download Section --}}
+        @if($order->pdf_drive_link)
+        <div class="px-6 py-4 bg-blue-50">
+            <h3 class="text-lg font-semibold text-blue-800 mb-3">📄 Download Your Order Summary</h3>
+            <p class="text-blue-700 mb-3">Get a beautiful PDF with your order details, QR code, and song links.</p>
+            <a href="{{ $order->pdf_drive_link }}" target="_blank" class="inline-block bg-red-500 hover:bg-red-600 text-white text-center font-bold py-2 px-4 rounded-md transition duration-300 ease-in-out">
+                📥 Download PDF
+            </a>
+        </div>
+        @endif
+
         {{-- Optional: Display lyrics or order details --}}
         {{--
         <div class="px-6 py-4">

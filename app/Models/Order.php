@@ -21,7 +21,9 @@ class Order extends Model
         'status',
         'audio_file',
         'video_file',
-        'youtube_id'
+        'youtube_id',
+        'pdf_drive_link',
+        'pdf_file_path'
     ];
 
     protected $casts = [

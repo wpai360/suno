@@ -188,13 +188,51 @@ class WebhookController extends Controller
                 'private'
             );
 
+            // Create a test order for PDF generation
+            $testOrder = Order::create([
+                'customer_name' => 'Test Customer',
+                'city' => 'Test City',
+                'order_total' => 25.50,
+                'group_size' => 'a group',
+                'items' => json_encode(['Pizza Margherita', 'Spaghetti Carbonara', 'Tiramisu']),
+                'lyrics' => 'This is a test song about delicious Italian food...',
+                'drive_link' => $driveLink,
+                'youtube_link' => $youtubeResult['video_url'] ?? '',
+                'youtube_id' => $youtubeResult['video_id'] ?? '',
+                'status' => 'completed'
+            ]);
+
+            // Generate and upload PDF
+            $pdfService = app(\App\Services\PdfGenerationService::class);
+            $pdfPath = $pdfService->generateOrderPdf($testOrder);
+            
+            // Upload PDF to Google Drive
+            $pdfDriveLink = $driveService->upload($pdfPath); // No need for second parameter, it auto-detects PDF
+            
+            // Update order with PDF link
+            $testOrder->update([
+                'pdf_drive_link' => $pdfDriveLink,
+                'pdf_file_path' => $pdfPath
+            ]);
+
+            // Clean up local PDF file
+            if (file_exists($pdfPath)) {
+                unlink($pdfPath);
+            }
+
             return response()->json([
                 'success' => true,
-                'message' => 'Conversion and upload successful',
+                'message' => 'Conversion, upload, and PDF generation successful',
                 'data' => [
                     'output_file' => $outputFile,
                     'drive_link' => $driveLink,
-                    'youtube' => $youtubeResult
+                    'youtube' => $youtubeResult,
+                    'test_order' => [
+                        'id' => $testOrder->id,
+                        'customer_name' => $testOrder->customer_name,
+                        'song_url' => route('song.show', $testOrder->id)
+                    ],
+                    'pdf_drive_link' => $pdfDriveLink
                 ]
             ]);
         } catch (\Exception $e) {

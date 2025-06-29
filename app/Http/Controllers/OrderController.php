@@ -83,4 +83,25 @@ class OrderController extends Controller
 
         return view('song', compact('order', 'songUrl', 'youtubeUrl', 'gdriveUrl'));
     }
+
+    /**
+     * Manually generate and upload PDF for an order (for testing)
+     */
+    public function generatePdf(Order $order)
+    {
+        try {
+            \App\Jobs\GenerateAndUploadPdfJob::dispatch($order);
+            
+            return response()->json([
+                'success' => true,
+                'message' => 'PDF generation job dispatched successfully',
+                'order_id' => $order->id
+            ]);
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Failed to dispatch PDF generation job: ' . $e->getMessage()
+            ], 500);
+        }
+    }
 }

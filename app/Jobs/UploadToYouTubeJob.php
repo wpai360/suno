@@ -63,6 +63,10 @@ class UploadToYouTubeJob implements ShouldQueue
                 'youtube_id' => $youtubeResult['video_id']
             ]);
 
+            // Dispatch PDF generation job after YouTube upload is complete
+            \App\Jobs\GenerateAndUploadPdfJob::dispatch($this->order)
+                ->onQueue('pdf');
+
         } catch (\Exception $e) {
             Log::error('YouTube upload failed', [
                 'order_id' => $this->order->id,

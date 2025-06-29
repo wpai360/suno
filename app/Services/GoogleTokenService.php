@@ -26,6 +26,10 @@ class GoogleTokenService
         $this->client->setRedirectUri(config('services.google.redirect'));
         $this->client->setScopes(config('services.google.scopes'));
         
+        // Request offline access to get refresh tokens
+        $this->client->setAccessType('offline');
+        $this->client->setPrompt('consent'); // Force consent screen to ensure refresh token
+        
         // Disable SSL verification for development
         if (app()->environment('local')) {
             $this->client->setHttpClient(new \GuzzleHttp\Client([
@@ -89,25 +93,43 @@ class GoogleTokenService
     {
         try {
             if (!isset($token['refresh_token'])) {
+                Log::error('No refresh token available for token refresh', [
+                    'token_keys' => array_keys($token),
+                    'has_access_token' => isset($token['access_token']),
+                    'has_expires_in' => isset($token['expires_in'])
+                ]);
                 throw new \Exception('No refresh token available. Re-authentication required.');
             }
 
-            Log::info('Refreshing Google access token...');
+            Log::info('Refreshing Google access token...', [
+                'has_refresh_token' => true,
+                'current_expires_in' => $token['expires_in'] ?? 'unknown'
+            ]);
             
             $newToken = $this->client->fetchAccessTokenWithRefreshToken($token['refresh_token']);
             
-            // Merge with existing token to preserve refresh_token
-            $newToken['refresh_token'] = $token['refresh_token'];
+            // Ensure we preserve the refresh token in the new token data
+            if (!isset($newToken['refresh_token']) && isset($token['refresh_token'])) {
+                $newToken['refresh_token'] = $token['refresh_token'];
+                Log::info('Preserved existing refresh token in new token data');
+            }
+            
             $newToken['created'] = time();
 
             // Save the new token
             $this->saveToken($newToken);
 
-            Log::info('Google access token refreshed successfully');
+            Log::info('Google access token refreshed successfully', [
+                'new_expires_in' => $newToken['expires_in'] ?? 'unknown',
+                'has_refresh_token' => isset($newToken['refresh_token'])
+            ]);
             
             return $newToken;
         } catch (\Exception $e) {
-            Log::error('Failed to refresh Google access token: ' . $e->getMessage());
+            Log::error('Failed to refresh Google access token: ' . $e->getMessage(), [
+                'error_type' => get_class($e),
+                'token_has_refresh' => isset($token['refresh_token'])
+            ]);
             throw $e;
         }
     }
@@ -123,12 +145,29 @@ class GoogleTokenService
                 $token['created'] = time();
             }
 
+            // Log token details for debugging
+            Log::info('Saving Google token', [
+                'has_access_token' => isset($token['access_token']),
+                'has_refresh_token' => isset($token['refresh_token']),
+                'expires_in' => $token['expires_in'] ?? 'not_set',
+                'token_type' => $token['token_type'] ?? 'not_set',
+                'scope' => $token['scope'] ?? 'not_set'
+            ]);
+
+            // Ensure we have the essential token data
+            if (!isset($token['access_token'])) {
+                throw new \Exception('No access token in response');
+            }
+
             Storage::disk('public')->put($this->tokenFile, json_encode($token));
             
             // Cache the token for faster access
             Cache::put('google_access_token', $token, now()->addMinutes(55));
             
-            Log::info('Google access token saved successfully');
+            Log::info('Google access token saved successfully', [
+                'has_refresh_token' => isset($token['refresh_token']),
+                'expires_in' => $token['expires_in'] ?? 'unknown'
+            ]);
         } catch (\Exception $e) {
             Log::error('Failed to save Google access token: ' . $e->getMessage());
             throw $e;
