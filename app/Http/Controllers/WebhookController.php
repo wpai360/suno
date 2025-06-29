@@ -3,7 +3,7 @@
 namespace App\Http\Controllers;
 
 use Illuminate\Http\Request;
-use App\Services\ChatGPTService;
+use App\Services\ChatgptService;
 use App\Services\SunoService;
 use App\Services\YouTubeService;
 use App\Services\GoogleDriveService;
@@ -19,7 +19,7 @@ class WebhookController extends Controller
     protected $sunoService;
     protected $videoConverter;
 
-    public function __construct(ChatGPTService $chatGPTService, SunoService $sunoService)
+    public function __construct(ChatgptService $chatGPTService, SunoService $sunoService)
     {
         $this->chatGPTService = $chatGPTService;
         $this->sunoService = $sunoService;
@@ -39,7 +39,7 @@ class WebhookController extends Controller
         $groupSize = ($orderTotal > 20 || count($items) >= 4) ? 'multiple people' : 'solo dining';
 
         // Generate AI lyrics using ChatGPT
-        $lyrics = app(ChatGPTService::class)->generateLyrics($customerName, $city, $items, $groupSize);
+        $lyrics = app(ChatgptService::class)->generateLyrics($customerName, $city, $items, $groupSize);
 
         // Generate song using Suno API
         $songFile = app(SunoService::class)->generateSongDefault($lyrics);
