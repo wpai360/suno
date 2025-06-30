@@ -48,7 +48,8 @@ class UploadToYouTubeJob implements ShouldQueue
                 $this->videoFilePath,
                 "AI Song for " . $this->order->customer_name . " from " . $this->order->city,
                 "This is an AI-generated personalized song based on your order.",
-                'private'
+                'private',
+                config('services.youtube.channel_id') // Get channel ID from config
             );
 
             // Update order with YouTube details

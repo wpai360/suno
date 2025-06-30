@@ -50,4 +50,8 @@ return [
         ],
     ],
 
+    'youtube' => [
+        'channel_id' => env('YOUTUBE_CHANNEL_ID'),
+    ],
+
 ];
