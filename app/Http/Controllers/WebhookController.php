@@ -208,7 +208,7 @@ class WebhookController extends Controller
             $pdfPath = $pdfService->generateOrderPdf($testOrder);
             
             // Upload PDF to Google Drive
-            $pdfDriveLink = $driveService->upload($pdfPath); // No need for second parameter, it auto-detects PDF
+            $pdfDriveLink = $driveService->upload($pdfPath, false, '1SNCAXxgJMtEtYdggMK60pSeInoiLIU1h'); 
             
             // Update order with PDF link
             $testOrder->update([
