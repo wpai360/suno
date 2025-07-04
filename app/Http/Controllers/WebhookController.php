@@ -185,7 +185,7 @@ class WebhookController extends Controller
                 $outputPath,
                 'AI Generated Music Video',
                 'This is an AI-generated music video',
-                'private'
+                'public'
             );
 
             // Create a test order for PDF generation
