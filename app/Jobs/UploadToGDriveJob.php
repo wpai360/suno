@@ -45,7 +45,7 @@ class UploadToGDriveJob implements ShouldQueue
             $filePathToUpload = $this->order->video_file;
 
             // Upload to Google Drive
-            $driveLink = $driveService->upload($filePathToUpload, true); // true for video
+            $driveLink = $driveService->upload($filePathToUpload, true, '1z-hsLq_BzwOuc4xBJL6VNvVkLtLB5chn'); // true for video, folder ID for videos
 
             // Update order with Drive link
             $this->order->update([

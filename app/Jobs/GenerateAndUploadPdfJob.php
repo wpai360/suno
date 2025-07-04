@@ -39,7 +39,7 @@ class GenerateAndUploadPdfJob implements ShouldQueue
             ]);
 
             // Upload PDF to Google Drive
-            $driveLink = $driveService->upload($pdfPath, false); // false for PDF, not video
+            $driveLink = $driveService->upload($pdfPath, false, '1SNCAXxgJMtEtYdggMK60pSeInoiLIU1h'); // false for PDF, folder ID for PDFs
 
             // Update order with PDF drive link
             $this->order->update([

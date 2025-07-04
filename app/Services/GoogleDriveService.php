@@ -32,7 +32,7 @@ class GoogleDriveService
         }
     }
 
-    public function upload($filePath, $isVideo = false)
+    public function upload($filePath, $isVideo = false, $folderId = null)
     {
         try {
             if (!file_exists($filePath)) {
@@ -68,10 +68,14 @@ class GoogleDriveService
                     $mimeType = $isVideo ? 'video/mp4' : 'audio/mpeg';
             }
 
-            $fileMetadata = new \Google\Service\Drive\DriveFile([
+            $fileMetadataArr = [
                 'name' => basename($filePath),
                 'mimeType' => $mimeType
-            ]);
+            ];
+            if ($folderId) {
+                $fileMetadataArr['parents'] = [$folderId];
+            }
+            $fileMetadata = new \Google\Service\Drive\DriveFile($fileMetadataArr);
 
             $content = file_get_contents($filePath);
             $file = $this->service->files->create($fileMetadata, [
@@ -84,7 +88,8 @@ class GoogleDriveService
             Log::info('File uploaded to Google Drive successfully', [
                 'file_id' => $file->getId(),
                 'file_name' => basename($filePath),
-                'mime_type' => $mimeType
+                'mime_type' => $mimeType,
+                'folder_id' => $folderId
             ]);
 
             return $file->getWebViewLink();

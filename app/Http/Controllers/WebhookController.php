@@ -176,8 +176,9 @@ class WebhookController extends Controller
             ]);
 
             // Upload to Google Drive
-            $driveService = app(GoogleDriveService::class);
-            $driveLink = $driveService->upload($outputPath, true);
+            /** @var \App\Services\GoogleDriveService $driveService */
+            $driveService = app(\App\Services\GoogleDriveService::class);
+            $driveLink = $driveService->upload($outputPath, true, '1z-hsLq_BzwOuc4xBJL6VNvVkLtLB5chn');
 
             // Upload to YouTube
             $youtubeService = app(YouTubeService::class);
