@@ -58,7 +58,7 @@ class ChatgptService
     {
         $prompt = "Create a fun Italian song about an order placed in $city. 
         The customer, $customerName, ordered: " . implode(", ", $items) . ". 
-        They are dining with $groupSize.";
+        They are dining with $groupSize. keep the language of the song in italian not english,";
 
         $response = Http::withOptions([
             'verify' => false, // Bypass SSL verification
