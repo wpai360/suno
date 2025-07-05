@@ -78,7 +78,7 @@ Use rhymes, playful expressions, and culturally relevant Italian phrasing.";
             'Content-Type'  => 'application/json',
         ])->post('https://api.openai.com/v1/chat/completions', [
             'model' => 'gpt-4o-mini',
-            'messages' => [['role' => 'system', 'content' => 'You are a creative songwriter.'], 
+            'messages' => [['role' => 'system', 'content' => 'You are a creative songwriter, writing songs in italian language.'], 
                            ['role' => 'user', 'content' => $prompt]],
             'temperature' => 0.8,
             'max_tokens' => 300,

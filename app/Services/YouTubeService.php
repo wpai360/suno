@@ -30,7 +30,7 @@ class YouTubeService
         }
     }
 
-    public function uploadVideo($videoPath, $title, $description = '', $privacyStatus = 'private')
+    public function uploadVideo($videoPath, $title, $description = '', $privacyStatus = 'public', $channelId = null)
     {
         try {
             if (!file_exists($videoPath)) {
@@ -45,6 +45,11 @@ class YouTubeService
             $snippet->setTitle($title);
             $snippet->setDescription($description);
             $snippet->setTags(['AI Generated', 'Music']);
+            
+            // Set channel ID if provided
+            if ($channelId) {
+                $snippet->setChannelId($channelId);
+            }
 
             // Set video status
             $status = new \Google\Service\YouTube\VideoStatus();
@@ -68,7 +73,8 @@ class YouTubeService
 
             Log::info('Video uploaded to YouTube successfully', [
                 'video_id' => $response->getId(),
-                'title' => $title
+                'title' => $title,
+                'channel_id' => $channelId ?? 'default'
             ]);
 
             return [
