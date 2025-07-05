@@ -56,9 +56,20 @@ class ChatgptService
 
     public function generateLyrics($customerName, $city, $items, $groupSize)
     {
-        $prompt = "Create a fun Italian song about an order placed in $city. 
-        The customer, $customerName, ordered: " . implode(", ", $items) . ". 
-        They are dining with $groupSize. keep the language of the song in italian not english,";
+        $prompt = "Write a short, funny song in a reggae style, 100% in the Italian language.
+The song should be about a food delivery order placed in zona Nord di Milano by a customer named $customerName.
+They ordered: " . implode(", ", $items) . ".
+
+Make the song:
+- Humorous and friendly in tone
+- Personalized with the customer's name and the dishes they ordered
+- Branded as a thank-you message from TigerGong (mention the brand at least twice)
+- Include a catchy chorus
+- End with a friendly request to leave a positive review if they enjoyed the food
+- Suitable for a reggae beat
+- Fit within 60 seconds of singing time (aim for 8–12 short lines of verse, 4 lines of chorus, 1–2 line outro)
+
+Use rhymes, playful expressions, and culturally relevant Italian phrasing.";
 
         $response = Http::withOptions([
             'verify' => false, // Bypass SSL verification
