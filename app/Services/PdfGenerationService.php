@@ -16,8 +16,16 @@ class PdfGenerationService
     public function generateOrderPdf(Order $order): string
     {
         try {
-            // Generate QR code for the order
-            $qrCode = QrCode::size(200)->generate(route('song.show', $order->id));
+            // Force APP_URL for queue jobs that don't have HTTP context
+            $appUrl = config('app.url');
+            if (empty($appUrl) || $appUrl === 'http://localhost') {
+                $appUrl = env('APP_URL', 'https://api.targetgong.com');
+            }
+            
+            // Generate QR code for the order with forced domain
+            $songUrl = $appUrl . '/song/' . $order->id;
+            Log::info('Song URL: ' . $songUrl);
+            $qrCode = QrCode::size(200)->generate($songUrl);
             
             // Prepare data for the PDF
             $data = [
@@ -27,6 +35,7 @@ class PdfGenerationService
                 'items' => is_array($order->items) ? $order->items : json_decode($order->items, true),
                 'youtubeUrl' => $order->youtube_link,
                 'driveUrl' => $order->drive_link,
+                'songUrl' => $songUrl,
             ];
 
             // Generate PDF
@@ -49,7 +58,9 @@ class PdfGenerationService
             
             Log::info('PDF generated successfully', [
                 'order_id' => $order->id,
-                'filepath' => $filepath
+                'filepath' => $filepath,
+                'app_url' => $appUrl,
+                'song_url' => $songUrl
             ]);
             
             return $filepath;

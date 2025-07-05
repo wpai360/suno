@@ -147,7 +147,7 @@
             <img src="data:image/png;base64,{{ base64_encode($qrCode) }}" alt="QR Code">
         </div>
         <div class="qr-instructions">Your personalized song is ready!</div>
-        <div class="song-link">{{ route('song.show', $order->id) }}</div>
+        <div class="song-link">{{ $songUrl  }}</div>
     </div>
 
     <div class="divider"></div>
