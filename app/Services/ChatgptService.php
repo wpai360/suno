@@ -56,7 +56,7 @@ class ChatgptService
 
     public function generateLyrics($customerName, $city, $items, $groupSize)
     {
-        $prompt = "Write a short, funny song in a reggae style, 100% in the Italian language.
+        $prompt = "Write a short, funny song in a reggae style, 100% in the Italian language, should keep in my the language of the song in italian not english.
 The song should be about a food delivery order placed in zona Nord di Milano by a customer named Stefano.
 They ordered: " . implode(", ", $items) . ".
 
